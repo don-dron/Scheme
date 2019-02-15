@@ -1,0 +1,246 @@
+;<число> :== <число> | <число> & <деление> & <число>;
+
+(define (number10? char) ;цифры
+  (and (> (char->integer char) 47) (< (char->integer char) 58)))
+
+(define (sign? char) ; знаки
+  (or (eq? char #\+) (eq? char #\-)))
+
+(define (separator? char) ;пробельные символы
+  (or (eq? char #\space) (or (eq? char #\tab) (eq? char #\newline))))
+(define (check-frac str)
+  (define (parse str) ;локальный парсер
+    (if (and (not (null? str)) (number10? (car str)))
+        (parse (cdr str)) ;следующее число
+        (if (null? str)
+            (null? str)
+            (if (eq? (car str) #\/) ;если началась дробь
+                (parse (cdr str))
+                (eq? (car str) #\/)))))
+  
+  (if (eq? (memq #\/ (string->list str)) #f) ;нахождение элемента #\/
+      (memq #\/ (string->list str))
+      (if (sign? (car (string->list str)))
+          (parse (cdr (string->list str))) ;переводим обратно в строку
+          (parse (string->list str)))))
+
+(define (easy-scan-frac str)
+  (if (check-frac str) 
+      str
+      (check-frac str)))
+(define (scan-frac str)
+  (define (parse-value str value)
+    (if (and (not (null? str)) (number10? (car str)))
+        (parse-value (cdr str) (append value (list (- (char->integer (car str)) 48))))
+        value))
+  (define (fold list value i)
+    (if (not (null? list))
+        (fold (cdr list) (+ value (* (car list) (expt 10 i))) (+ i 1))
+        value))
+  (if (eq? (memq #\/ (string->list str)) #f)
+      (memq #\/ (string->list str))
+      (if (sign? (car (string->list str)))
+          (if (eq? (car (string->list str)) #\+) 
+              (/ (fold (reverse (parse-value (cdr (string->list str)) '())) 0 0)
+                 (fold (reverse (parse-value (cdr (memq #\/ (string->list str))) '())) 0 0))
+              (- (/ (fold (reverse (parse-value (cdr (string->list str)) '())) 0 0)
+                    (fold (reverse (parse-value (cdr (memq #\/ (string->list str))) '())) 0 0))))
+          (/ (fold (reverse (parse-value (string->list str) '())) 0 0) (fold (reverse (parse-value (cdr (memq #\/ (string->list str))) '())) 0 0)))))
+
+(define (scan-many-fracs str)
+  (define (parse list)
+    (if (null? list)
+        '()
+        (if (check-frac (car list))
+            (cons (scan-frac (car list)) (parse (cdr list)))
+            (check-frac (car list))))) 
+  (define (parse_values stack_number stack str)
+    (cond ((and (null? str) (null? stack)) (parse stack_number))
+          ((null? str) (parse (append stack_number (list (list->string stack)))))
+          ((and (separator? (car str)) (not (null? stack)))
+           (parse_values (append stack_number (list (list->string stack))) '() (cdr str)))
+          ((separator? (car str)) (parse_values stack_number stack (cdr str)))
+          ((or (or (number10? (car str)) (eq? (car str) #\/))
+               (and (null? stack) (sign? (car str)))) (parse_values stack_number (append stack (list (car str))) (cdr str)))
+          (else (= 1 2))))
+  (parse_values '() '() (string->list str)))
+      
+;Создание источчника последовательности для разного типа ввода
+
+(define (make-source seq . eof)
+  (let ((a (if (not (null? eof))
+               eof
+               #f)))
+    (cond ((string? seq) (append (string->list seq) (list a)))
+          ((vector? seq) (append (vector->list seq) (list a)))
+          (else (append seq (list a))))))
+;Макрос для того что бы юзать точку останова в любой момент программы
+;так удобнее
+(define-syntax next
+  (syntax-rules ()
+    ((_ name) (let ((char (car name)))
+                (if (and (list? (car name)) (null? (cdr name)))
+                    (car char)
+                    (begin (set! name (cdr name)) 
+                           char))))))
+;Точка останова
+(define-syntax point
+  (syntax-rules ()
+    ((_ i src) (set! i (next src)))))
+;Объявление главной функции
+;и подключение источника последовательности 
+(define (parse vec)
+  (define ext 1)
+  (define pik 1)
+  (define src (make-source vec))
+  ;Грамматика
+  ;<Program>  ::= <Articles> | <Body> . 
+  ;<Artiles> :: = <Article>*.
+  ; <Body> ::= if <Body>* endif | integer | word.
+  ;<Article> :: = define word <Body>* end.
+
+
+;sdadasd
+  ;Разбор тела member - нахождение элемента в списке
+  ; и вывод остатка списка начиная с этого значения
+  
+  (define (parse-body)
+    (cond ((equal? pik 'if)
+           (list pik (let loop ((res '()))
+                       (point pik src)
+                       (if (and pik (not (equal? pik 'endif)))
+                           (loop (cons (parse-body) res))
+                           (if (equal? pik 'endif)
+                               (reverse res)
+                               (ext #f))))))
+          ;конструкция if тело endif внути тела с помощью цикла
+          ;-> немного измененная грамматика
+          ((member pik '(end endif define)) (ext #f));остановка
+          ((symbol? pik) pik);должно быть символом
+          ((number? pik) pik);должно быть числом
+          (else (ext #f))));остановка
+;Парсер выражения define <body> end
+;с помощью цикла проверяем пока не end
+;также проверяем наличие тела между define и end
+  
+  (define (parse-article)
+    (cond ((equal? pik 'define)
+           (point pik src)  ;создаем точку
+           (list pik (let loop ((res '()))
+                       (point pik src) ;создаем точку
+                       (if (and pik (not (equal? pik 'end))) ;если не end снова цикл
+                           (loop (cons (parse-body) res))
+                           (if (equal? pik 'end)
+                               (begin (point pik src) (reverse res)) ; выводим собранное выражение
+                               (ext #f)))))) ;остановка
+          (else #f)))  
+  ; Парсер выражений циклом 
+  (define (parse-articles)
+    (let loop ((res '()))
+      (if pik
+          (let ((article (parse-article)))
+            (if article ;если еще есть выражение циклим опять, если нет выводим собранные выражения 
+                (loop (cons article res))
+                (reverse res)))
+          (reverse res))))
+  ;Г.Функция парсера разбор программы пока не кончатся выражения и тела внутри, циклом
+  (define (parse-program)
+    (list (parse-articles) ; выражения в программе
+          (let loop ((res '()))
+            (if pik
+                (let ((body (parse-body))) ;если есть еще тело
+                  (point pik src)
+                  (loop (cons body res)))
+                (reverse res))))) ; вывод результата
+  
+  (begin (point pik src) ; вызов точки останова из любого места программы
+         (call-with-current-continuation
+          (lambda (exit) 
+            (set! ext exit)
+            (parse-program)))))
+(parse #(if)) ;тест на пустой иф выдает false
+
+(parse #( define  end));тест на пустой define 
+(parse #( 0 if 2 if 3 endif 4 endif 5 0 if 2 if 3 endif 4 endif 5 )) ;тест на вложенные ифы
+(parse #(1 2 +))
+(parse #(x dup 0 swap if drop -1 endif))
+(parse #( define -- 1 - end 
+           define =0? dup 0 = end 
+           define =1? dup 1 = end 
+           define factorial 
+           =0? if drop 1 exit endif 
+           =1? if drop 1 exit endif 
+           dup -- 
+           factorial 
+           * 
+           end 
+           0 factorial 
+           1 factorial 
+           2 factorial 
+           3 factorial 
+           4 factorial ))
+(parse #(   define abs 
+             dup 0 < 
+             if neg endif 
+             end 
+             9 abs 
+             -9 abs      ))
+(parse #(   define =0? dup 0 = end
+             define <0? dup 0 < end
+             define signum
+             =0? if exit endif
+             <0? if drop -1 exit endif
+             drop
+             1
+             end
+             0 signum
+             -5 signum
+             10 signum       ))
+
+(parse #(   define -- 1 - end
+             define =0? dup 0 = end
+             define =1? dup 1 = end
+             define factorial
+             =0? if drop 1 exit endif
+             =1? if drop 1 exit endif
+             dup --
+             factorial
+             *
+             end
+             0 factorial
+             1 factorial
+             2 factorial
+             3 factorial
+             4 factorial     ))
+
+(parse #(   define =0? dup 0 = end
+             define =1? dup 1 = end
+             define -- 1 - end
+             define fib
+             =0? if drop 0 exit endif
+             =1? if drop 1 exit endif
+             -- dup
+             -- fib
+             swap fib
+             +
+             end
+             define make-fib
+             dup 0 < if drop exit endif
+             dup fib
+             swap --
+             make-fib
+             end
+             10 make-fib     ))
+
+
+(parse #(   define =0? dup 0 = end
+             define gcd
+             =0? if drop exit endif
+             swap over mod
+             gcd
+             end
+             90 99 gcd
+             234 8100 gcd    ) )
+
+(parse #(define word w1 w2 w3)) 
+
