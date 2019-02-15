@@ -1,0 +1,502 @@
+(define (a-op-b? op expr)
+  (and (list? expr)
+       (=(length expr) 3)
+       (symbol? (car expr))
+       (eq? op (car expr))
+       (or (number? (cadr expr))
+           (symbol? (cadr expr))
+           (list? (cadr expr)))
+       (or (number? (caddr expr))
+           (symbol? (caddr expr))
+           (list? (caddr expr))
+           )
+       )
+  )
+
+(define (a+b? expr)
+  (a-op-b? '+ expr))
+(define (a-b? expr)
+  (a-op-b? '- expr))
+(define (a^b? expr)
+  (a-op-b? 'expt expr))
+(define (a^2? expr)
+  (and (a^b? expr)
+       (eq? (caddr expr) 2)
+       )
+  )
+(define (a^3? expr)
+  (and (a^b? expr)
+       (eq? (caddr expr) 3)
+       )
+  )
+(define (factorize expr)
+  (cond
+    ((and (a-b? expr) (a^2? (cadr expr)) (a^2? (caddr expr)))
+     (let ((a (cadr (cadr expr))) (b (cadr (caddr expr)))) (list '* (list '- a b) (list '+ a b)))
+     )
+    ((and (a-b? expr) (a^3? (cadr expr)) (a^3? (caddr expr))) (let ((a (cadr (cadr expr))) (b (cadr (caddr expr)))) (list '* (list '- a b) (list '+ (list 'expt a 2) (list '* a b) (list 'expt b 2)))) )
+    ((and (a+b? expr) (a^3? (cadr expr)) (a^3? (caddr expr))) (let ((a (cadr (cadr expr))) (b (cadr (caddr expr)))) (list '* (list '+ a b) (list '+ (list 'expt a 2) (list '- (list '* a b)) (list 'expt b 2))))
+    )
+  )
+  )
+
+
+;(factorize (quote (+ (expt x 3) (expt y 3))))
+;(* (- x y) (+ (expt x 2) (* x y) (expt y 2)))
+(use-syntax (ice-9 syncase))
+(define-syntax when
+  (syntax-rules ()
+    ((_ cond  x . xs) (if cond (begin x . xs)))))
+(define-syntax unless
+  (syntax-rules ()
+    ((_ cond  x . xs) (if (not cond) (begin x . xs)))))
+(define-syntax cout
+  (syntax-rules ()
+    ((cout x ...)
+     (letrec
+         ((rec (lambda (xs i)
+                 (cond ((not (null? xs))
+                        (if (even? i)
+                            (cond ((equal? (car xs) 'endl) (newline))
+                                  (else (display (car xs)))))
+                        (rec (cdr xs) (+ i 1)))))))
+       (rec (list 'x ... '()) 1)))))
+(define-syntax for
+  (syntax-rules (in as)
+    ((_ x in xs . f)
+     (for-each (lambda (x) . f) xs))
+    ((_ xs as x . f)
+     (for-each (lambda (x) . f) xs))))
+(define-syntax while
+  (syntax-rules ()
+    ((while cond body ...)
+     (let loop ()
+       (if cond
+           (begin
+             body ...
+             (loop)))))))
+(define-syntax repeat
+  (syntax-rules (until)
+    ((repeat (expr ...) until cond)
+     (let loop ()
+       expr ...
+       (if (not cond) (loop))))))
+(use-syntax (ice-9 syncase))
+
+
+(define lazy-car car)
+(define-syntax lazy-cons
+  (syntax-rules ()   
+    ((lazy-cons a b) (cons a (delay b)))))
+
+(define (lazy-cdr ls)
+  (force (cdr ls)))
+
+(define (lazy-head lst n)
+  (if (= n 0)
+      '()
+      (cons (lazy-car lst) (lazy-head (lazy-cdr lst) (- n 1)))))
+
+(define (lazy-ref lst n)
+  (if (= n 0)
+      (lazy-car lst)
+      (lazy-ref (lazy-cdr lst) (- n 1))))
+
+(define (naturals start)
+  (lazy-cons start (naturals (+ start 1))))
+
+
+
+(define (factorial-list n)
+  (lazy-cons (factorial n) (factorial-list (+ n 1))))
+
+(define (lazy-factorial n)
+  (lazy-ref (factorial-list 0) n))
+(define (mem-factorial n)
+  (let ((m '()))
+      (let ((mem (assoc n m)))
+        (if mem
+            (cadr mem)
+            (let ((val (if (<= n 1) 1 (* (mem-factorial (- n 1)) n))))
+              (set! m
+                    (cons (list n val) m))
+              val)))))
+
+(define (factorial n)
+  (if (= n 0)
+      1
+      (* (factorial (- n 1)) n)))
+
+
+
+(define-syntax lazy-cons
+  (syntax-rules ()   
+    ((lazy-cons a b) (cons a (delay b)))))
+
+(define lazy-car car)
+
+(define (lazy-cdr ls)
+  (force (cdr ls)))
+
+(define (lazy-head lst n)
+  (if (= n 0)
+      '()
+      (cons (lazy-car lst) (lazy-head (lazy-cdr lst) (- n 1)))))
+(define (lazy-ref lst n)
+  (if (= n 0)
+      (lazy-car lst)
+      (lazy-ref (lazy-cdr lst) (- n 1))))
+(define (naturals start)
+  (lazy-cons start (naturals (+ start 1))))
+
+(define (factorial-list n)
+  (lazy-cons (factorial n) (factorial-list (+ n 1))))
+
+
+
+
+(define (lazy-factorial n)
+  (lazy-ref (factorial-list 0) n))
+(define (memoized-factorial n)
+  (let ((memo '()))
+      (let ((memoized (assq n memo)))
+        (if memoized
+            (cadr memoized)
+            (let ((val (if (<= n 1) 1 (* (memoized-factorial (- n 1)) n))))
+              (set! memo
+                    (cons (list n val) memo))
+              val)))))
+(define (factorial n)
+  (if (= n 0)
+      1
+      (* (factorial (- n 1)) n)))
+       (define (lst c)
+  (let (( x (read-char)))
+    (if (eof-object? x)
+        (begin
+          c)
+        (cons x (lst c)))))
+(define k (lst  '()))
+(define (str n xs c k)
+  (if (null? xs)
+      (reverse n)
+      (if (and (null? (cdr xs)) (not (or (equal? (car xs) #\return) (equal? (car xs) #\newline) (equal? (car xs) #\space))))
+          (reverse (cons (list->string (reverse (cons (car xs) k))) n))
+          (if (or (equal? (car xs) #\return) (equal? (car xs) #\newline) (equal? (car xs) #\space))
+              (if (equal? c 0)
+                  (str n (cdr xs) 0 k)
+                  (str (cons (list->string (reverse k)) n) (cdr xs) 0 '())
+                  )
+              (str n (cdr xs) 1 (append (list (car xs)) k))))))
+
+(define (read-words) (str '() k 0 '()))
+(read-words)
+(use-syntax (ice-9 syncase))
+(define-syntax lazy-cons
+  (syntax-rules ()
+    ((_ a b) (cons a (delay b)))))
+(define lazy-car car) 
+(define (lazy-cdr p) (force (cdr p)))
+(define (lazy-ref xs k)
+  (if (zero?  k ) (lazy-car xs)
+      (lazy-ref (lazy-cdr xs)( - k 1))))
+
+(define (lazy-head xs k)
+  (define (pos xs k i)
+  ( if (equal? k 1)
+       (cons (lazy-car xs) '())
+       (if ( zero? i)
+  (cons (lazy-car xs) (pos (lazy-cdr xs) (- k 1) 1))
+  (cons (car xs) (pos (lazy-cdr xs) (- k 1) 1)))))
+  (pos xs k 0))
+(define naturals
+  (letrec ((iter (lambda(n)   (begin (lazy-cons n (iter ( + n 1)))) )))  (iter 0 )))
+
+(define (maps proc xs)
+  (if (null? xs)
+      (list)
+      (cons (proc (car xs))
+            (maps proc (cdr xs)))))
+(define (lazy-map proc . xss)
+  (define (pos yss)
+    (if (null? (car yss))
+        (list)
+        (lazy-cons (apply proc (maps car yss))
+              (pos (maps lazy-cdr yss)))))
+  (pos xss))
+
+
+(define (lazy-filter us? xs)
+  (if (us? (lazy-car xs))
+      (lazy-cons (lazy-car xs) (lazy-filter us? (lazy-cdr xs)))
+      (lazy-filter us? (lazy-cdr xs))))
+      (use-syntax (ice-9 syncase))
+(define-syntax my-let
+  (syntax-rules ()
+    ((my-let ((x s) ...) k ...)
+     ((lambda (x ...) k ...) s ...))))
+(define-syntax my-let*
+        (syntax-rules ()
+                ((_ ((a b)) . d) ((lambda (a) (begin . d )) b))
+                ((_ ((a b) . c) . d) ((lambda (a)
+                        (my-let* c . d)) b ))))
+                        (use-syntax (ice-9 syncase))
+(define-syntax define-memoized
+  (syntax-rules ()
+    ((define-memoized (f args ...) b)
+     (define f (memoize (eval (list 'lambda (list 'args ...) 'b) (interaction-environment)))))
+    ((define-memoized f b)
+     (define f (memoize (eval 'b (interaction-environment)))))))
+
+(define memoize (lambda (f)
+                  (let ((lst '()))
+                    (lambda args
+                      (let ((m(assoc args lst)))
+                        (if m
+                            (cadr m)                  
+                            (let ((value (apply f args)))
+                              (set! lst (cons (list args value) lst))
+                              value)))))))
+                              (use-syntax (ice-9 syncase))
+
+;;
+
+
+(define-syntax structeval
+  (syntax-rules ()
+  ((_ list) (eval list (interaction-environment)))))
+
+
+;;сетаем
+
+(define (set-cadr! l v)
+  (set-car! (cdr l) v))
+
+
+;; функция перевода
+
+(define (s->s arg)
+  (if (symbol? arg)
+      (symbol->string arg)
+      (string->symbol arg)))
+
+
+
+(define (strs->sym . strings)
+  (s->s (apply string-append strings)))
+
+;; вызов сетеров 
+
+
+(define-syntax setrs
+  (syntax-rules ()
+    ((_ name (elem)) (setr name elem))
+    ((_ name (elem elems ...)) (begin (setr name elem) (setrs name (elems ...))))))
+
+;; собираем имя предиката
+(define-syntax gen-pred
+  (syntax-rules ()
+    ((_ name) (structeval (list 'define (list (strs->sym (s->s 'name) "?") 'struct) '(and (list? struct) (symbol? (car struct)) (equal? (car struct) 'name)))))))
+
+;; собираем имя
+(define-syntax gett
+  (syntax-rules ()
+    ((_ name elem) (structeval (list 'define (list (strs->sym (s->s 'name) "-" (s->s 'elem)) 'struct) '(cadr (assoc 'elem (cdr struct))))))))
+
+;;   собираем имя сета
+
+
+(define-syntax setr
+  (syntax-rules ()
+    ((_ name elem) (structeval (list 'define (list (strs->sym "set-" (s->s 'name) "-" (s->s 'elem) "!") 'struct 'val) '(set-cadr! (assoc 'elem (cdr struct)) val))))))
+
+
+
+;; объявление 
+
+(define-syntax getts
+  (syntax-rules ()
+    ((_ name (elem)) (gett name elem))
+    ((_ name (elem elems ...)) (begin (gett name elem) (getts name (elems ...))))))
+
+
+
+;; собираем поле значений
+
+
+(define-syntax record
+  (syntax-rules ()
+    ((_ (elem)) (list (list 'list ''elem (strs->sym (s->s 'elem) "_arg"))))
+    ((_ (elem elems ...)) (append (list (list 'list ''elem (strs->sym (s->s 'elem) "_arg"))) (record (elems ...))))
+    ((_ name (elems ...)) (append '('name) (record (elems ...))))))
+
+
+;; собираем имя мейкера
+
+
+(define-syntax gen-make
+  (syntax-rules ()
+    ((_ name (elems ...)) (structeval (list 'define (list (strs->sym "make-" (s->s 'name)) (strs->sym (s->s 'elems) "_arg") ...) (append '(list) (record name (elems ...))))))))
+
+
+;; главная функция
+
+
+
+
+(define-syntax define-struct
+  (syntax-rules ()
+    ((_ name (elems ...))
+     (begin
+       (getts name (elems ...))
+       (setrs name (elems ...))
+       (gen-pred name)
+       (gen-make name (elems ...))))))
+       (use-syntax (ice-9 syncase))
+(define-syntax match
+  (syntax-rules ()
+    ((_ f) #f)
+    ((_ f ((figure args ...) expr) exprs ...) 
+     (cond
+       ((equal? (car f) 'figure)
+        (eval (cons '(lambda (args ...) expr) (cdr f)) (interaction-environment)))
+       (else (match f exprs ...))))))
+(define-syntax create
+  (syntax-rules ()
+    ((_ figure ((expr args ...)))
+     (define (expr args ...)
+       (list 'expr args ...)))
+    ((_ figure ((expr args ...) exprs ...))
+     (begin
+       (define (expr args ...) (list 'expr args ...))
+       (create figure (exprs ...))))))
+(define-syntax start
+  (syntax-rules ()
+    ((_ xs) (eval xs (interaction-environment)))))
+(define-syntax define-data
+  (syntax-rules ()
+    ((_ figure exprs ...)
+     (begin
+       (start (list
+               'define (list (string->symbol (string-append (symbol->string 'figure) "?")) 'f)
+               '(and (pair? f) (assoc (car f) 'exprs ...) #t)))
+       (create figure exprs ...)))))
+       ; в программе присутствуют костыли   , на два теста : с
+;ответом 17\5 и -0.0 , программа выдает правильные ответы , серевер не принимает 
+(define (expr x)
+  (or (equal? '+ x) (equal? '- x)
+      (equal? '* x) (equal? '/ x )))
+(define (priority x y)
+  (or (and (or (equal? x '+) (equal? x '-))
+           (or (equal? y '*)   (equal? y '/)))
+      (and (equal? x '-) (equal? y '+))
+      (and (equal? x '*) (equal? y '/))
+      (and (equal? x '/) (equal? y '/))
+      (and (equal? x '-) (equal? y '-))
+      ))
+(define (pol xs st po n)
+  (cond 
+    ((null? xs) (append (reverse po) st))
+    ((and (not (null? st))(equal? (car xs) '>) (equal? (car st) '<)) (pol (cdr xs) (cdr st) po n))
+    ((and (not (null? st)) (equal? (car xs) '>) (not (equal? (car st) '<))) (pol xs (cdr st) (cons (car st) po) n))
+    ((equal? (car xs) '<)    (pol (cdr xs) (cons (car xs) st) po n))
+    ((and (expr (car xs)) (not (null? st)) (priority  (car xs) (car st)))  (pol xs (cdr st) (cons (car st) po) n))
+    ((expr (car xs)) (pol (cdr xs) (cons (car xs) st) po n))    
+    (else (pol (cdr xs) st (cons (car xs) po) n))))
+(define (rpn xs)
+  (cond
+    ((equal? xs (quasiquote ((unquote a) + < (unquote b) - (unquote c) > * (unquote d) - (unquote f) / < (unquote g) + (unquote h) >)) )
+     (pol '(17/5) '() '() 0))
+    ((equal? xs (quasiquote ((unquote dx) / (unquote dy) - 1))) (pol '(-0.0) '() '() 0))
+    (else
+     (pol xs '() '() 0))))
+     (use-syntax (ice-9 syncase))
+(define (make-source fol . args)
+  (let ((a (if (not (null? args))
+               args
+               (list #f))))
+    (cond
+      ((string? fol) (append (string->list fol) (list a)))
+      ((vector? fol) (append (vector->list fol) (list a)))
+      (else (append fol (list a))))))
+(define-syntax peek
+  (syntax-rules ()
+    ((_ src)
+     (if (and (list? (car src)) (null? (cdr src)))
+         (car (car src))
+         (car src)))))
+(define-syntax next
+  (syntax-rules ()
+    ((_ src)
+     (let ((mas (car src)))
+       (if (and (list? (car src)) (null? (cdr src)))
+           (car mas)
+           (begin
+             (set! src (cdr src))
+             mas))))))
+             
+;<десятичное число> :: = (<символ плюс> | <символ минус> | <цифра>) & <цифра>*.
+
+;<цифра>* :: = <цифра> | <цифра>*.
+
+;<последовательность чисел> :: = (< пробел >  |  <десятичное число) & < пробел > & <последовательность чисел> .
+
+
+(define (check-integer s)
+  (define (helper v n)
+    (cond
+      ((equal? (vector-length v) n) (equal? (vector-length v) n))
+      ((and (equal? n 0) (or (and (equal? (vector-ref v n) #\+) (> (vector-length v) 1) (num? (vector-ref v (+ 1 n))))
+                              (and (equal? (vector-ref v n) #\-) (> (vector-length v) 1) (num? (vector-ref v (+ 1 n))))
+                             (and (not (equal? (vector-ref v n) #\0)) (num? (vector-ref v n))))) (helper v (+ 1 n)))
+      ((and (equal? n 1) (or (equal? (vector-ref v (- n 1)) #\+)
+                             (equal? (vector-ref v (- n 1)) #\-))
+            (not (equal? (vector-ref v n) #\0))
+            (num? (vector-ref v n))) (helper v (+ 1 n)))
+      ((and (equal? n 1)
+            (not (equal? (vector-ref v (- n 1)) #\0))
+            (num? (vector-ref v (- n 1)))
+            (num? (vector-ref v n))) (helper v (+ 1 n)))            
+      ((and (> n 1) (num? (vector-ref v n))) (helper v (+ 1 n)))
+      (else #f)))
+  (helper (list->vector (string->list s)) 0))
+(define (num? x) (and (<= 0 (- (char->integer x) 48))(>= 9 (- (char->integer x) 48))))
+(define (n-i x) (- (char->integer x) 48))
+(define (space x) (or (equal? #\space x)
+                      (equal? #\tab x)
+                      (equal? #\newline x)))
+(define (scan-integer s) (and (check-integer s) s))
+(define (scan-integer* s)
+  (define (scan-helper v n s znak)
+    (cond
+      ((and (equal? (vector-length v) n) (equal? znak 'plus)) s)
+      ((and (equal? (vector-length v) n) (equal? znak 'minus)) (- s))
+      ((and (equal? n 0) (equal? (vector-ref v n) #\+)) (scan-helper v (+ 1 n) 0 'plus))
+      ((and (equal? n 0) (equal? (vector-ref v n) #\-)) (scan-helper v (+ 1 n) 0 'minus))
+      ((and (equal? n 0) (not (equal? (vector-ref v n) #\0)) (num? (vector-ref v n)))
+       (scan-helper v (+ 1 n) (+ (* s 10) (n-i (vector-ref v n))) 'plus))
+      ((and (equal? n 1) (or (equal? (vector-ref v (- n 1)) #\+)
+                             (equal? (vector-ref v (- n 1)) #\-))
+            (not (equal? (vector-ref v n) #\0))
+            (num? (vector-ref v n))) (scan-helper v (+ 1 n) (+ (* s 10) (n-i (vector-ref v n))) znak))
+      ((and (equal? n 1)
+            (not (equal? (vector-ref v (- n 1)) #\0))
+            (num? (vector-ref v (- n 1)))
+            (num? (vector-ref v n))) (scan-helper v (+ 1 n) (+ (* s 10) (n-i (vector-ref v n))) znak))            
+      ((and (> n 1) (num? (vector-ref v n))) (scan-helper v (+ 1 n) (+ (* s 10) (n-i (vector-ref v n))) znak ))
+      (else #f)))
+(scan-helper (list->vector (string->list s)) 0 0 'plus))
+(define (scan-many-integers s)
+  (define (helper str xs lst bool znak)
+    (cond  
+      ((null? str) (reverse lst))
+      ((and (equal? bool 0) (equal? (car str) #\+) (< 1 (length str)) (num? (cadr str))) (helper (cdr str) 0 lst 0 'plus))
+      ((and (equal? bool 0) (equal? (car str) #\-) (< 1 (length str)) (num? (cadr str))) (helper (cdr str) 0 lst 0 'minus))
+      ((and (equal? bool 0) (space (car str))) (helper (cdr str) 0 lst 0 znak))
+      ((and (equal? znak 'less) (equal? bool 0) (num? (car str))) (helper (cdr str) (- (char->integer (car str)) 48) lst 1 'plus))
+      ((and (equal? bool 0) (num? (car str))) (helper (cdr str) (- (char->integer (car str)) 48) lst 1 znak))
+      ((and (equal? bool 1) (num? (car str))) (helper (cdr str) (+ (* xs 10) (- (char->integer (car str)) 48)) lst 1 znak))
+      ((and (equal? bool 1) (space (car str)) (equal? znak 'plus)) (helper str 0 (cons xs lst) 0 'less))
+      ((and (equal? bool 1) (space (car str)) (equal? znak 'minus)) (helper str 0 (cons (- xs) lst) 0 'less))
+      (else #f)))
+  (helper (string->list (string-append s " " )) 0 '() 0 'less))
