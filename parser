@@ -1,0 +1,245 @@
+
+(define (next elem) 
+  (if (null? (car elem)) 
+      (cdr elem) 
+      (begin 
+        (set-car! elem (cdar elem)) 
+        (counter elem)))) 
+
+(define (adop? x) 
+  (or (equal? x '+) (equal? x '-))) 
+
+(define (mop? x) 
+  (or (equal? x '*) (equal? x '/))) 
+
+(define (num?? x) 
+  (or (number? x) (and (symbol? x) (not (or (adop? x) (mop? x) (equal? x '^))))))
+
+
+
+(define (jobb elem) 
+  (if (null? (car elem)) 
+      (cdr elem) 
+      (begin 
+        (let ((a (caar elem))) 
+          (set-car! elem (cdar elem)) 
+          a)))) 
+
+(define (counter elem) 
+  (if (null? (car elem)) 
+      (cdr elem) 
+      (caar elem))) 
+
+(define (make-source seq . xs) 
+  (cons 
+   (cond 
+     ((list? seq) seq) 
+     ((vector? seq) (vector->list seq)) 
+     ((string? seq) (string->list seq))) 
+   (and (not (null? xs)) (car xs)))) 
+
+(define (spacex? x) (or (equal? x #\space) 
+                                (equal? x #\tab) (equal? x #\newline))) 
+
+;<буква> ::= 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' |
+
+; 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' | 
+
+; 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' | 
+
+; 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z'. 
+(define (let?? x) 
+  (and (char? x) (or (and (>= (char->integer x) (char->integer #\A)) (<= (char->integer x) (char->integer #\Z))) 
+                     (and (>= (char->integer x) (char->integer #\a)) (<= (char->integer x) (char->integer #\z)))))) 
+
+;<операция> ::= '+' | '-' | '*' | '/' | '^'.
+(define (op?? x) 
+  (or (equal? x #\+) (equal? x #\-) (equal? x #\*) (equal? x #\/) (equal? x #\^))) 
+;<цифра> ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'. 
+(define (digt? x) 
+  (and (char? x) (>= (char->integer x) (char->integer #\0)) (<= (char->integer x) (char->integer #\9)))) 
+;<знак> ::= '-' | '+'. 
+(define (signum? x) 
+  (or (equal? x #\+) (equal? x #\-))) 
+
+(define (int? x) 
+  (or (digt? x) (signum? x))) 
+;<знак-научной-записи> ::= 'e' | 'E'. 
+(define (exptr? x) 
+  (or (equal? x #\e) (equal? x #\E))) 
+
+;<скобка> ::= '(' | ')'. 
+ 
+(define (paren x) 
+  (or (equal? x #\() (equal? x #\)))) 
+
+;<символ> ::= <буква> | <символ> <буква>.
+(define (sym?? x) 
+  (or (let?? x) (op?? x))) 
+
+(define (tokenize xs) 
+  (call-with-current-continuation 
+   (lambda (exit) 
+
+
+     (define elem (make-source xs)) ;источник 
+
+
+
+     (define (tokenize-number) 
+       (tokenize-float (tokenize-uint))) ; если число
+
+
+
+     ;<дробная часть> ::= '.' <беззнаковое-целое-число> <экспоненциальная-запись> |
+     (define (tokenize-sign) 
+       (if (equal? (jobb elem) #\-) 
+           -1 
+           1))  ;<число> ::= <беззнаковое-целое-число> <дробная-часть>. 
+     (define (tokenize-uint) 
+       (define (iter c) 
+         (if (digt? (counter elem)) 
+             (iter (+ (* c 10) (tokenize-digit))) ;<целое-число> ::= <знак> <беззнаковое-целое-число> | <беззнаковое-целое-число>. 
+             c)) 
+       (iter (tokenize-digit)))
+
+     ;если дробное
+     
+     (define (tokenize-float a) 
+       (define (iter b c) 
+         (if (digt? (counter elem))  ;<экспоненциальная-запись> ::= <знак-экспоненциальной-записи> <целое-число> |. 
+             (iter (+ b 1) (+ (* c 10) (tokenize-digit))) 
+             (* c (expt 10 (- (tokenize-exp) b))))) 
+       (if (equal? (counter elem) #\.) 
+           (if (digt? (next elem)) 
+               (exact->inexact (iter 1 (+ (* a 10) (tokenize-digit)))) 
+               (exit #f)) 
+           a))
+
+     ;если степень Е
+     
+     (define (tokenize-digit) 
+       (- (char->integer (jobb elem)) (char->integer #\0)))
+
+     ;если число
+     
+     (define (tokenize-int) 
+       (if (signum? (counter elem)) 
+           (* (tokenize-sign) (tokenize-uint))   ;<беззнаковое-целое-число> ::= <цифра> | <цифра> <беззнаковое-целое-число>. 
+           (tokenize-uint)))
+
+     ;если без знака
+     
+     (define (tokenize-exp) 
+       (if (exptr? (counter elem)) 
+           (if (int? (next elem)) 
+               (tokenize-int) 
+               (exit #f)) 
+           0)) 
+
+     ;если стпепень 
+     (define (tokenize-paren) 
+       (string (jobb elem)))
+
+     ;если скобка
+     
+     (define (tokenize-op) 
+       (string->symbol (string (jobb elem))))
+
+     ;если операция
+     
+     (define (tokenize-symbol) 
+       (define (iter1) 
+         (cons (jobb elem) (if (let?? (counter elem)) (iter1) '())))
+       (string->symbol (list->string (iter1))))
+
+
+     ;если буква
+     
+     (define (iter) 
+       (cond 
+         ((not (counter elem)) '()) 
+         ((spacex? (counter elem)) (begin (next elem) (iter))) 
+         ((digt? (counter elem)) (cons (tokenize-number) (iter))) 
+         ((op?? (counter elem)) (cons (tokenize-op) (iter))) 
+         ((let?? (counter elem)) (cons (tokenize-symbol) (iter))) 
+         ((paren (counter elem)) (cons (tokenize-paren) (iter))) 
+         (else (exit #f))))
+ 
+     (iter)))) 
+
+
+(define (parse xs) 
+  (call-with-current-continuation 
+   (lambda (exit) 
+
+
+     (define elem (make-source xs)) ;источник
+
+     
+     (define (parse-expr) ;выражение 
+       (parse-expr* (parse-term))) 
+
+
+     (define (parse-expr* c) ;выражение+
+       (if (adop? (counter elem)) 
+           (parse-expr* (list c (jobb elem) (parse-term))) 
+           c)) 
+
+
+
+     (define (parse-term) ;терминал
+       (parse-term* (parse-factor))) 
+
+
+
+     (define (parse-term* c) ;терминал+
+       (if (mop? (counter elem)) 
+           (parse-term* (list c (jobb elem) (parse-factor))) 
+           c)) 
+
+
+     (define (parse-factor) ;степень
+       (let ((a (parse-power))) 
+         (if (equal? (counter elem) '^) 
+             (list a (jobb elem) (parse-factor)) 
+             a))) 
+
+
+
+     (define (parse-power) 
+       (cond 
+         ((num?? (counter elem)) (jobb elem)) 
+         ((equal? (counter elem) "(") 
+          (begin 
+            (next elem) 
+            (let ((a (parse-expr))) 
+              (if (equal? (jobb elem) ")") 
+                  a 
+                  (exit #f))))) 
+         ((equal? (counter elem) '-) 
+          (begin 
+            (next elem) 
+            (list '- (parse-power)))) 
+         (else (exit #f))))
+
+
+
+
+     
+     (let ((a (parse-expr))) 
+       (and (not (counter elem)) a))))) 
+
+
+
+(define (tree->scheme xs) ;разбор дерева
+  (if (list? xs) 
+      (if (null? (cddr xs)) 
+          (list (tree->scheme (car xs)) (tree->scheme (cadr xs))) 
+          (list 
+           (if (equal? (cadr xs) '^) 
+               'expt 
+               (cadr xs)) 
+           (tree->scheme (car xs)) 
+           (tree->scheme (caddr xs)))) 
+      xs))
